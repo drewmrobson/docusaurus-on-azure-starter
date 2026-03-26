@@ -47,8 +47,8 @@ stages:
                       az config set bicep.use_binary_from_path=false
                       az bicep install
                       az bicep lint --file ./bicep/main.bicep
-                      az deployment sub validate --location ${{ parameters.location }} --template-file ./bicep/main.bicep --parameters ./config/${{ parameters.environment }}.parameters.bicepparam --parameters name=${{ parameters.staticWebApp }} --parameters location=${{ parameters.location }} --parameters resourceGroupName=${{ parameters.resourceGroup }}
-                      az deployment sub create --what-if --location ${{ parameters.location }} --template-file ./bicep/main.bicep --parameters ./config/${{ parameters.environment }}.parameters.bicepparam --parameters name=${{ parameters.staticWebApp }} --parameters location=${{ parameters.location }} --parameters resourceGroupName=${{ parameters.resourceGroup }}
+                      az deployment sub validate --location ${{ parameters.location }} --template-file ./bicep/main.bicep --parameters name=${{ parameters.staticWebApp }} --parameters location=${{ parameters.location }} --parameters resourceGroupName=${{ parameters.resourceGroup }}
+                      az deployment sub create --what-if --location ${{ parameters.location }} --template-file ./bicep/main.bicep --parameters name=${{ parameters.staticWebApp }} --parameters location=${{ parameters.location }} --parameters resourceGroupName=${{ parameters.resourceGroup }}
   
   - ${{ if eq(parameters.condition, true) }}:
     - stage: ${{ parameters.environment }}
