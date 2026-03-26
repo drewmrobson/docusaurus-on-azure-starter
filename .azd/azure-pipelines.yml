@@ -1,0 +1,84 @@
+trigger:
+  - main
+
+# Run a baseline deployment from main each morning
+schedules:
+  - cron: "0 20 * * 0-4" # Run daily at 6AM AEST M-F
+    displayName: Daily morning deploy from main
+    branches:
+      include:
+        - main
+    always: "true" # Always run, even if no code changes
+
+variables:
+  - name: vmImage
+    value: ubuntu-latest
+  - name: resource-group
+    value: "<Resource Group Name>"
+  - name: location
+    value: westus2
+  - name: website-token
+    value: "<Static Web App Token>"
+
+  - name: runBuild
+    value: true
+
+  # Semver versioning
+  - name: major
+    value: 1
+  - name: minor
+    value: 0
+  - name: revision
+    value: $[counter('', 1)]
+
+pool:
+  vmImage: $(vmImage)
+
+# Semver versioning with autoincrement revision
+name: $(major).$(minor)$(Rev:.r)
+
+# Stages for each environment
+stages:
+  - template: platform-job.yml
+    parameters:
+      azureSubscription: <Service Connection Name>
+      environment: prd
+      location: $(location)
+      resourceGroup: $(resource-group)
+      staticWebApp: <Static Web App Name>
+      condition: ${{ variables['runBuild'] }}
+  - stage: Website
+    displayName: "Deploy Website (prd)"
+    jobs:
+      - deployment:
+        displayName: "Deploy Website (prd)"
+        environment: "prd"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: Bash@3
+                  displayName: Build
+                  inputs:
+                    targetType: "inline"
+                    script: |
+                      cd docusaurus
+                      npm run clear
+                      npm install
+                      npm run build
+                - task: AzureStaticWebApp@0
+                  inputs:
+                    app_location: "/docusaurus/build"
+                    api_location: "/api"
+                    output_location: ""
+                  env:
+                    azure_static_web_apps_api_token: $(website-token)
+                - task: Bash@3
+                  displayName: Fix line endings
+                  inputs:
+                    targetType: "inline"
+                    script: sed -i 's/\r$//' "./.azd/healthcheck.sh"
+                - task: Bash@3
+                  inputs:
+                    filePath: "./.azd/healthcheck.sh"

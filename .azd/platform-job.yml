@@ -1,0 +1,77 @@
+parameters:
+  azureSubscription:
+    description: "Azure Service Connection for this workload"
+    type: string
+    required: true
+  environment:
+    description: "SDLC environment for this workload"
+    type: string
+    required: true
+  location:
+    description: "Target location for this workload"
+    type: string
+    required: true
+  resourceGroup:
+    description: "Target resource group for this workload"
+    type: string
+    required: true
+  staticWebApp:
+    description: ""
+    type: string
+    required: true
+  condition:
+    description: ""
+    type: boolean
+    required: true
+
+stages:
+  - stage: bicepwhatif
+    displayName: "Bicep What If (${{ parameters.environment }})"
+    jobs:
+      - deployment:
+        displayName: "Bicep What If (${{ parameters.environment }})"
+        environment: "${{ parameters.environment }}"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: "Bicep What If (${{ parameters.environment }})"
+                  inputs:
+                    azureSubscription: "${{ parameters.azureSubscription }}"
+                    scriptLocation: inlineScript
+                    scriptType: bash
+                    inlineScript: |
+                      az bicep uninstall
+                      az config set bicep.use_binary_from_path=false
+                      az bicep install
+                      az bicep lint --file ./bicep/main.bicep
+                      az deployment sub validate --location ${{ parameters.location }} --template-file ./bicep/main.bicep --parameters ./config/${{ parameters.environment }}.parameters.bicepparam --parameters name=${{ parameters.staticWebApp }} --parameters location=${{ parameters.location }} --parameters resourceGroupName=${{ parameters.resourceGroup }}
+                      az deployment sub create --what-if --location ${{ parameters.location }} --template-file ./bicep/main.bicep --parameters ./config/${{ parameters.environment }}.parameters.bicepparam --parameters name=${{ parameters.staticWebApp }} --parameters location=${{ parameters.location }} --parameters resourceGroupName=${{ parameters.resourceGroup }}
+  
+  - ${{ if eq(parameters.condition, true) }}:
+    - stage: ${{ parameters.environment }}
+      dependsOn: bicepwhatif
+      displayName: "Bicep Deploy (${{ parameters.environment }})"
+      jobs:
+        - deployment:
+          displayName: "Bicep Deploy (${{ parameters.environment }})"
+          environment: "${{ parameters.environment }}"
+          strategy:
+            runOnce:
+              deploy:
+                steps:
+                  - checkout: self
+                  - task: AzureCLI@2
+                    displayName: "Bicep Deploy (${{ parameters.environment }})"
+                    inputs:
+                      azureSubscription: "${{ parameters.azureSubscription }}"
+                      scriptLocation: inlineScript
+                      scriptType: bash
+                      inlineScript: |
+                        az bicep uninstall
+                        az config set bicep.use_binary_from_path=false
+                        az bicep install
+                        az deployment sub create --location ${{ parameters.location }} --template-file ./bicep/main.bicep --parameters name=${{ parameters.staticWebApp }} --parameters location=${{ parameters.location }} --parameters resourceGroupName=${{ parameters.resourceGroup }}
+    
